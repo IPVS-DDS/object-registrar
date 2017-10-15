@@ -1,0 +1,25 @@
+{
+  "namespace": "de.unistuttgart.ipvs.dds.avro",
+  "type": "record",
+  "name": "SensorTypeRegistration",
+  "doc": "A message sent to register sensor types or update sensor type information. Use the sensor type's ID as message key.",
+  "fields": [
+    {
+      "name": "name",
+      "type": "string",
+      "doc": "The display name of the sensor type."
+    },
+    {
+      "name": "description",
+      "type": "string",
+      "default": "",
+      "doc": "A more detailed description of the sensor type and its purpose."
+    },
+    {
+      "name": "unit",
+      "type": "string",
+      "default": "",
+      "doc": "The unit the sensor is measuring data in."
+    }
+  ]
+}
