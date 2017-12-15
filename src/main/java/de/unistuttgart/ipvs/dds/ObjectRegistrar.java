@@ -1,8 +1,7 @@
 package de.unistuttgart.ipvs.dds;
 
-import java.util.Collections;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
+import java.util.concurrent.Future;
 
 import de.unistuttgart.ipvs.dds.avro.DeviceRegistration;
 import de.unistuttgart.ipvs.dds.avro.SensorRegistration;
@@ -14,6 +13,7 @@ import org.apache.commons.cli.*;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -21,8 +21,13 @@ import org.apache.log4j.Logger;
 public class ObjectRegistrar {
     private final static Logger logger = LogManager.getLogger(ObjectRegistrar.class);
 
+    /** Client ID with which to register with Kafka */
+    private final static String CLIENT_ID = "register-object";
+    /** Topic to which to send device registration messages */
     private final static String DEVICE_REGISTRATION_TOPIC = "device-registration";
+    /** Topic to which to send sensor registration messages */
     private final static String SENSOR_REGISTRATION_TOPIC = "sensor-registration";
+    /** Topic to which to send sensor type registration messages */
     private final static String SENSOR_TYPE_REGISTRATION_TOPIC = "sensor-type-registration";
 
     private static void printUsageAndExit(Options options) {
@@ -32,9 +37,6 @@ public class ObjectRegistrar {
     }
 
     public static void main(String[] args) {
-        /* Client ID with which to register with Kafka */
-        final String clientId = "register-object";
-
         Options options = new Options();
         options.addOption("b", "bootstrap-servers", true, "Kafka connection string");
         options.addOption("s", "schema-registry", true, "URL of the schema registry");
@@ -56,7 +58,7 @@ public class ObjectRegistrar {
 
             final Properties producerProperties = new Properties();
             producerProperties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-            producerProperties.put(ProducerConfig.CLIENT_ID_CONFIG, clientId);
+            producerProperties.put(ProducerConfig.CLIENT_ID_CONFIG, CLIENT_ID);
 
             switch (commandLine.getOptionValue("type")) {
                 case "device":
@@ -93,8 +95,13 @@ public class ObjectRegistrar {
                 Serdes.String().serializer(),
                 registrationSerde.serializer()
         )) {
+            final Future<RecordMetadata> future = producer.send(new ProducerRecord<>(
+                    DEVICE_REGISTRATION_TOPIC,
+                    deviceId,
+                    registration
+            ));
             // Wait for the future to complete
-            producer.send(new ProducerRecord<>(DEVICE_REGISTRATION_TOPIC, deviceId, registration)).get();
+            future.get();
         } catch (Exception e) {
             logger.error("Device registration failed", e);
         }
@@ -121,8 +128,13 @@ public class ObjectRegistrar {
                 Serdes.String().serializer(),
                 registrationSerde.serializer()
         )) {
+            final Future<RecordMetadata> future = producer.send(new ProducerRecord<>(
+                    SENSOR_REGISTRATION_TOPIC,
+                    sensorId,
+                    registration
+            ));
             // Wait for the future to complete
-            producer.send(new ProducerRecord<>(SENSOR_REGISTRATION_TOPIC, sensorId, registration)).get();
+            future.get();
         } catch (Exception e) {
             logger.error("Sensor registration failed", e);
         }
@@ -144,8 +156,13 @@ public class ObjectRegistrar {
                 Serdes.String().serializer(),
                 registrationSerde.serializer()
         )) {
+            final Future<RecordMetadata> future = producer.send(new ProducerRecord<>(
+                    SENSOR_TYPE_REGISTRATION_TOPIC,
+                    typeId,
+                    registration
+            ));
             // Wait for the future to complete
-            producer.send(new ProducerRecord<>(SENSOR_TYPE_REGISTRATION_TOPIC, typeId, registration)).get();
+            future.get();
         } catch (Exception e) {
             logger.error("Sensor type registration failed", e);
         }
@@ -153,6 +170,7 @@ public class ObjectRegistrar {
 
     /**
      * Creates a serialiser/deserialiser for the given type, registering the Avro schema with the schema registry.
+     * Taken from https://github.com/confluentinc/examples/blob/3.3.0-post/kafka-streams/src/main/java/io/confluent/examples/streams/GlobalKTablesExampleDriver.java
      *
      * @param schemaRegistryUrl the schema registry to register the schema with
      * @param <T>               the type for which to create the serialiser/deserialiser
